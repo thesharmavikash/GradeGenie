@@ -1,9 +1,11 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from PIL import Image
 import concurrent.futures
 import json
 import time
+import os
 
 # Page Configuration
 st.set_page_config(
@@ -66,25 +68,13 @@ st.markdown("""
         z-index: 2;
     }
 
-    # .hero-title {
-    #     font-size: 5rem;
-    #     font-weight: 700;
-    #     margin-bottom: 1.5rem;
-    #     animation: fadeInDown 1s ease;
-    #     text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-    #     background: linear-gradient(to right, #fff, #e0e0e0);
-    #     color: white;
-    #     -webkit-background-clip: text;
-    #     -webkit-text-fill-color: transparent;
-    # }
-
    .hero-title {
-   font-size: 5rem;
-   font-weight: 700;
-   margin-bottom: 1.5rem;
-   animation: fadeInDown 1s ease;
-   text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-   color: white;
+        font-size: 5rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        animation: fadeInDown 1s ease;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        color: white;
    }
 
     .hero-subtitle {
@@ -93,6 +83,7 @@ st.markdown("""
         margin-bottom: 2rem;
         animation: fadeInUp 1s ease;
         text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        color: white;
     }
 
     /* Enhanced Upload Section */
@@ -282,14 +273,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# API Configuration
 GEMINI_API_KEY = st.secrets["Gemini_API_Token"]
-genai.configure(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Helper functions (same as before)
+# Helper functions using the new google-genai library
 def extract_text_from_image(image, prompt="Extract all text from this image as accurately as possible."):
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
-        response = model.generate_content([prompt, image])
+        response = client.models.generate_content(
+            model='gemini-1.5-pro',
+            contents=[prompt, image]
+        )
         return response.text.strip()
     except Exception as e:
         st.error(f"Error in text extraction: {str(e)}")
@@ -297,7 +291,6 @@ def extract_text_from_image(image, prompt="Extract all text from this image as a
 
 def compute_similarity_score(student_answer, correct_answer):
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
         similarity_prompt = f"""
         Compare the following two texts and provide a similarity score from 0-100:
         Correct Answer: {correct_answer}
@@ -312,7 +305,10 @@ def compute_similarity_score(student_answer, correct_answer):
         Return ONLY the numerical similarity score.
         """
         
-        response = model.generate_content(similarity_prompt)
+        response = client.models.generate_content(
+            model='gemini-1.5-pro',
+            contents=similarity_prompt
+        )
         score = ''.join(filter(str.isdigit, response.text))
         return int(score) if score else 85
     except Exception as e:
@@ -321,7 +317,6 @@ def compute_similarity_score(student_answer, correct_answer):
 
 def evaluate_answer(student_answer, correct_answer):
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
         evaluation_prompt = f"""
         Perform a detailed evaluation of the student's answer:
         Correct Answer Context: {correct_answer}
@@ -336,7 +331,10 @@ def evaluate_answer(student_answer, correct_answer):
         Format the response in a clear, constructive manner.
         """
         
-        response = model.generate_content(evaluation_prompt)
+        response = client.models.generate_content(
+            model='gemini-1.5-pro',
+            contents=evaluation_prompt
+        )
         return response.text
     except Exception as e:
         st.error(f"Detailed evaluation error: {str(e)}")
@@ -344,7 +342,7 @@ def evaluate_answer(student_answer, correct_answer):
 
 
 def main():
-    # Hero Section with Enhanced Animation   
+    # Hero Section with Enhanced Animation    
     st.markdown("""
         <div class="hero-section">
             <div class="hero-content">
@@ -404,8 +402,6 @@ def main():
             key="eval_scheme"
         )
         st.markdown('</div>', unsafe_allow_html=True)
-
-    # Add this after the upload sections in main()
 
     # Enhanced Start Button with Loading Animation
     st.markdown("""
